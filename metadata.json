@@ -1,0 +1,5 @@
+{
+  "name": "TenderFlow AI",
+  "description": "An intelligent tender and task management application that uses AI to suggest optimal task assignments to employees based on their skills and task requirements.",
+  "requestFramePermissions": []
+}
