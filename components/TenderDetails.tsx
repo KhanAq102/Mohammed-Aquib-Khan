@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Tender, Employee, Task, TaskStatus, Vehicle, DriverOption, Attachment, AttachmentType, EmployeeStatus, VehicleTypeMaster } from '../types';
+import { Tender, Employee, Task, TaskStatus, Vehicle, DriverOption, Attachment, AttachmentType, EmployeeStatus, VehicleTypeMaster, UserRole } from '../types';
 import { CalendarIcon } from './icons/CalendarIcon';
 import TaskList from './TaskList';
 import TimelineChart from './TimelineChart';
@@ -13,12 +13,14 @@ import CalendarView from './CalendarView';
 import { Bars3Icon } from './icons/Bars3Icon';
 import { ViewColumnsIcon } from './icons/ViewColumnsIcon';
 import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
+import { CheckBadgeIcon } from './icons/CheckBadgeIcon';
 
 
 interface TenderDetailsProps {
     tender: Tender;
     employees: Employee[];
     vehicleTypes: VehicleTypeMaster[];
+    userRole: UserRole;
     onAssignTask: (tenderId: string, taskId: string, employeeId: string | undefined) => void;
     onAiAssignTask: (tenderId: string, taskId: string) => Promise<{ employeeId: string; reason: string; } | null>;
     onUpdateTaskStatus: (tenderId: string, taskId: string, status: TaskStatus) => void;
@@ -33,7 +35,7 @@ interface TenderDetailsProps {
     onEditTender: (tender: Tender) => void;
 }
 
-const TenderDetails: React.FC<TenderDetailsProps> = ({ tender, employees, vehicleTypes, onAssignTask, onAiAssignTask, onUpdateTaskStatus, onAddVehicle, onDeleteVehicle, onAddAttachment, onDeleteAttachment, onAddTask, onUpdateTaskDetails, onDeleteTask, onUpdateTenderRemarks, onEditTender }) => {
+const TenderDetails: React.FC<TenderDetailsProps> = ({ tender, employees, vehicleTypes, userRole, onAssignTask, onAiAssignTask, onUpdateTaskStatus, onAddVehicle, onDeleteVehicle, onAddAttachment, onDeleteAttachment, onAddTask, onUpdateTaskDetails, onDeleteTask, onUpdateTenderRemarks, onEditTender }) => {
     const [filterStatus, setFilterStatus] = useState<TaskStatus | 'all'>('all');
     const [filterAssignee, setFilterAssignee] = useState<string>('all');
     const [taskView, setTaskView] = useState<'list' | 'kanban' | 'calendar'>('list');
@@ -71,6 +73,9 @@ const TenderDetails: React.FC<TenderDetailsProps> = ({ tender, employees, vehicl
     // Remarks state
     const [isEditingRemarks, setIsEditingRemarks] = useState(false);
     const [remarksText, setRemarksText] = useState(tender.remarks || '');
+    const isTenderCompleted = !!tender.completionDate;
+    const isReadOnly = isTenderCompleted && userRole !== 'admin';
+
 
     useEffect(() => {
         setRemarksText(tender.remarks || '');
@@ -247,7 +252,8 @@ const TenderDetails: React.FC<TenderDetailsProps> = ({ tender, employees, vehicl
                     </div>
                      <button
                         onClick={() => onEditTender(tender)}
-                        className="ml-4 flex-shrink-0 flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        disabled={isReadOnly}
+                        className="ml-4 flex-shrink-0 flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                     >
                         <PencilIcon className="h-4 w-4" />
                         <span>Edit</span>
@@ -272,10 +278,25 @@ const TenderDetails: React.FC<TenderDetailsProps> = ({ tender, employees, vehicl
                 </div>
             </div>
             
+            {isTenderCompleted && (
+                <div className="bg-green-100 border-l-4 border-green-500 text-green-800 p-4 rounded-r-lg" role="alert">
+                    <div className="flex">
+                        <div className="py-1"><CheckBadgeIcon className="h-6 w-6 text-green-500 mr-3" /></div>
+                        <div>
+                            <p className="font-bold">Tender Completed</p>
+                            <p className="text-sm">
+                                Completed on {formatDate(tender.completionDate!)}.
+                                Total duration: {calculateDurationInDays(tender.startDate, tender.completionDate!)} days.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xl font-semibold text-slate-700">Remarks / Notes</h3>
-                    {!isEditingRemarks && (
+                    {!isEditingRemarks && !isReadOnly && (
                         <button
                             onClick={() => setIsEditingRemarks(true)}
                             className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -330,7 +351,7 @@ const TenderDetails: React.FC<TenderDetailsProps> = ({ tender, employees, vehicl
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xl font-semibold text-slate-700">Documents & Links</h3>
-                    {!isAddingAttachment && (
+                    {!isAddingAttachment && !isReadOnly && (
                          <button
                             onClick={() => setIsAddingAttachment(true)}
                             className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -389,7 +410,7 @@ const TenderDetails: React.FC<TenderDetailsProps> = ({ tender, employees, vehicl
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xl font-semibold text-slate-700">Required Vehicles</h3>
-                    {!isAddingVehicle && (
+                    {!isAddingVehicle && !isReadOnly && (
                          <button
                             onClick={() => setIsAddingVehicle(true)}
                             className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -494,7 +515,7 @@ const TenderDetails: React.FC<TenderDetailsProps> = ({ tender, employees, vehicl
                             </button>
                         )}
                      </div>
-                      {!isAddingTask && (
+                      {!isAddingTask && !isReadOnly && (
                          <button
                             onClick={() => setIsAddingTask(true)}
                             className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -555,19 +576,20 @@ const TenderDetails: React.FC<TenderDetailsProps> = ({ tender, employees, vehicl
                         tasks={filteredTasks}
                         tenderId={tender.id}
                         employees={employees}
+                        userRole={userRole}
                         onAssignTask={onAssignTask}
                         onAiAssignTask={onAiAssignTask}
                         onUpdateTaskStatus={onUpdateTaskStatus}
                         onUpdateTaskDetails={onUpdateTaskDetails}
                         onDeleteTask={onDeleteTask}
+                        isTenderCompleted={isTenderCompleted}
                     />
                 )}
                 {taskView === 'kanban' && (
                     <KanbanBoard
                         tasks={filteredTasks}
                         employees={employees}
-                        tenderId={tender.id}
-                        onUpdateTaskStatus={onUpdateTaskStatus}
+                        onUpdateTaskStatus={(taskId, newStatus) => onUpdateTaskStatus(tender.id, taskId, newStatus)}
                     />
                 )}
                 {taskView === 'calendar' && (

@@ -1,19 +1,21 @@
 import React from 'react';
-import { Task, Employee, TaskStatus } from '../types';
+import { Task, Employee, TaskStatus, UserRole } from '../types';
 import TaskItem from './TaskItem';
 
 interface TaskListProps {
     tasks: Task[];
     tenderId: string;
     employees: Employee[];
+    userRole: UserRole;
     onAssignTask: (tenderId: string, taskId: string, employeeId: string | undefined) => void;
     onAiAssignTask: (tenderId: string, taskId: string) => Promise<{ employeeId: string; reason: string; } | null>;
     onUpdateTaskStatus: (tenderId: string, taskId: string, status: TaskStatus) => void;
     onUpdateTaskDetails: (tenderId: string, taskId: string, taskData: Pick<Task, 'title' | 'description' | 'dueDate'>) => void;
     onDeleteTask: (tenderId: string, taskId: string) => void;
+    isTenderCompleted: boolean;
 }
 
-const TaskList: React.FC<TaskListProps> = ({ tasks, tenderId, employees, onAssignTask, onAiAssignTask, onUpdateTaskStatus, onUpdateTaskDetails, onDeleteTask }) => {
+const TaskList: React.FC<TaskListProps> = ({ tasks, tenderId, employees, userRole, onAssignTask, onAiAssignTask, onUpdateTaskStatus, onUpdateTaskDetails, onDeleteTask, isTenderCompleted }) => {
     return (
         <div className="divide-y divide-slate-200">
             {tasks.length > 0 ? (
@@ -23,11 +25,13 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, tenderId, employees, onAssig
                         tenderId={tenderId}
                         task={task}
                         employees={employees}
+                        userRole={userRole}
                         onAssignTask={onAssignTask}
                         onAiAssignTask={onAiAssignTask}
                         onUpdateTaskStatus={onUpdateTaskStatus}
                         onUpdateTaskDetails={onUpdateTaskDetails}
                         onDeleteTask={onDeleteTask}
+                        isTenderCompleted={isTenderCompleted}
                     />
                 ))
             ) : (

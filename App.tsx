@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Tender, Employee, Task, TaskStatus, Vehicle, DriverOption, Attachment, EmployeeStatus, VehicleTypeMaster } from './types';
+import { Tender, Employee, Task, TaskStatus, Vehicle, DriverOption, Attachment, EmployeeStatus, VehicleTypeMaster, UserRole } from './types';
 import Header from './components/Header';
 import TenderList from './components/TenderList';
 import TenderDetails from './components/TenderDetails';
@@ -9,6 +9,7 @@ import TeamDashboard from './components/TeamDashboard';
 import MastersDashboard from './components/MastersDashboard';
 import TenderFormModal, { TenderFormData } from './components/TenderFormModal';
 import AllTasksDashboard from './components/AllTasksDashboard';
+import { ToastProvider, useToast } from './components/notifications/ToastProvider';
 
 // Mock Data
 const MOCK_EMPLOYEES: Employee[] = [
@@ -63,8 +64,7 @@ const MOCK_TENDERS: Tender[] = [
     },
 ];
 
-
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
     const [tenders, setTenders] = useState<Tender[]>(MOCK_TENDERS);
     const [employees, setEmployees] = useState<Employee[]>(MOCK_EMPLOYEES);
     const [vehicleTypes, setVehicleTypes] = useState<VehicleTypeMaster[]>(MOCK_VEHICLE_TYPES);
@@ -72,6 +72,8 @@ const App: React.FC = () => {
     const [currentView, setCurrentView] = useState<'tenders' | 'performance' | 'team' | 'masters' | 'all-tasks'>('tenders');
     const [isTenderModalOpen, setIsTenderModalOpen] = useState(false);
     const [editingTender, setEditingTender] = useState<Tender | null>(null);
+    const [userRole, setUserRole] = useState<UserRole>('admin');
+    const { showToast } = useToast();
 
     const selectedTender = useMemo(() => {
         return tenders.find(t => t.id === selectedTenderId) || null;
@@ -88,7 +90,8 @@ const App: React.FC = () => {
         };
         setTenders(prev => [newTender, ...prev]);
         setSelectedTenderId(newTender.id);
-    }, []);
+        showToast('Tender created successfully!', 'success');
+    }, [showToast]);
 
     const handleUpdateTender = useCallback((tenderData: TenderFormData & { id: string }) => {
         setTenders(prev =>
@@ -104,7 +107,8 @@ const App: React.FC = () => {
                     : t
             )
         );
-    }, []);
+        showToast('Tender updated successfully!', 'success');
+    }, [showToast]);
 
     const handleDeleteTender = useCallback((tenderId: string) => {
         if (window.confirm("Are you sure you want to delete this tender and all its associated data? This action cannot be undone.")) {
@@ -115,8 +119,42 @@ const App: React.FC = () => {
                 }
                 return newTenders;
             });
+            showToast('Tender deleted successfully.', 'success');
         }
-    }, [selectedTenderId]);
+    }, [selectedTenderId, showToast]);
+
+    const handleDuplicateTender = useCallback((tenderId: string) => {
+        const originalTender = tenders.find(t => t.id === tenderId);
+        if (!originalTender) {
+            showToast('Could not find the tender to duplicate.', 'error');
+            return;
+        }
+
+        const newTender: Tender = {
+            id: `tnd-${Date.now()}`,
+            title: `Copy of ${originalTender.title}`,
+            client: '', // Reset client
+            startDate: new Date(), // Reset dates to today
+            endDate: new Date(),
+            tasks: originalTender.tasks.map(task => ({
+                ...task, // Copy title, description, dueDate
+                id: `task-${Date.now()}-${Math.random()}`, // New unique ID for the task
+                status: TaskStatus.Todo,
+                assignedTo: undefined,
+                assignedDate: undefined,
+                completionDate: undefined,
+                assignmentHistory: [],
+            })),
+            vehicles: [], // Reset vehicles
+            attachments: [], // Reset attachments
+            remarks: '', // Reset remarks
+            completionDate: undefined,
+        };
+
+        setTenders(prev => [newTender, ...prev]);
+        setSelectedTenderId(newTender.id);
+        showToast('Tender duplicated successfully!', 'success');
+    }, [tenders, showToast]);
     
     // Modal Handlers
     const handleOpenAddTenderModal = () => {
@@ -181,7 +219,8 @@ const App: React.FC = () => {
                 return tender;
             })
         );
-    }, []);
+        showToast('Task added successfully!', 'success');
+    }, [showToast]);
 
     const handleUpdateTaskDetails = useCallback((tenderId: string, taskId: string, taskData: Pick<Task, 'title' | 'description' | 'dueDate'>) => {
         setTenders(prevTenders =>
@@ -197,7 +236,8 @@ const App: React.FC = () => {
                 return tender;
             })
         );
-    }, []);
+        showToast('Task details updated.', 'success');
+    }, [showToast]);
 
     const handleDeleteTask = useCallback((tenderId: string, taskId: string) => {
         setTenders(prevTenders =>
@@ -209,7 +249,8 @@ const App: React.FC = () => {
                 return tender;
             })
         );
-    }, []);
+        showToast('Task deleted.', 'success');
+    }, [showToast]);
 
     const handleAssignTask = useCallback((tenderId: string, taskId: string, employeeId: string | undefined) => {
         const tender = tenders.find(t => t.id === tenderId);
@@ -218,7 +259,6 @@ const App: React.FC = () => {
         const task = tender.tasks.find(t => t.id === taskId);
         if (!task) return;
 
-        // Avoid creating a new history entry if the assignment hasn't changed
         if (task.assignedTo === employeeId) {
             return;
         }
@@ -233,14 +273,12 @@ const App: React.FC = () => {
             updatedTask.assignedDate = newAssignmentDate;
             updatedTask.assignmentHistory = [...(task.assignmentHistory || []), newHistoryEntry];
             
-            // If it was 'Todo', move it to 'In Progress'
             if (updatedTask.status === TaskStatus.Todo) {
                 updatedTask.status = TaskStatus.InProgress;
             }
-        } else { // Unassigning
+        } else {
             updatedTask.assignedTo = undefined;
             updatedTask.assignedDate = undefined;
-            // If a task is unassigned, it must be 'To Do' and cannot be complete.
             updatedTask.status = TaskStatus.Todo;
             updatedTask.completionDate = undefined;
         }
@@ -249,21 +287,38 @@ const App: React.FC = () => {
     }, [tenders, handleUpdateTask]);
 
     const handleUpdateTaskStatus = useCallback((tenderId: string, taskId: string, newStatus: TaskStatus) => {
-        const tender = tenders.find(t => t.id === tenderId);
-        if (!tender) return;
+        setTenders(prevTenders => prevTenders.map(tender => {
+            if (tender.id === tenderId) {
+                const updatedTender = { ...tender };
+                const taskIndex = updatedTender.tasks.findIndex(t => t.id === taskId);
+                if (taskIndex === -1) return tender;
 
-        const task = tender.tasks.find(t => t.id === taskId);
-        if (!task) return;
-        
-        const updatedTask: Task = {
-            ...task,
-            status: newStatus,
-            completionDate: newStatus === TaskStatus.Done ? (task.completionDate || new Date()) : undefined
-        };
+                const updatedTasks = [...updatedTender.tasks];
+                const taskToUpdate = { ...updatedTasks[taskIndex] };
 
-        handleUpdateTask(tenderId, updatedTask);
+                taskToUpdate.status = newStatus;
+                taskToUpdate.completionDate = newStatus === TaskStatus.Done ? (taskToUpdate.completionDate || new Date()) : undefined;
+                updatedTasks[taskIndex] = taskToUpdate;
 
-    }, [tenders, handleUpdateTask]);
+                updatedTender.tasks = updatedTasks;
+                
+                const allTasksDone = updatedTender.tasks.length > 0 && updatedTender.tasks.every(t => t.status === TaskStatus.Done);
+
+                if (allTasksDone) {
+                    updatedTender.completionDate = updatedTender.tasks.reduce((latest, currentTask) => {
+                        return currentTask.completionDate! > latest ? currentTask.completionDate! : latest;
+                    }, new Date(0));
+                } else {
+                    updatedTender.completionDate = undefined;
+                }
+                
+                return updatedTender;
+            }
+            return tender;
+        }));
+
+        showToast(`Task status updated to "${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}".`, 'info');
+    }, [showToast]);
 
     const handleAddVehicle = useCallback((tenderId: string, vehicleData: Omit<Vehicle, 'id'>) => {
         setTenders(prevTenders =>
@@ -271,7 +326,7 @@ const App: React.FC = () => {
                 if (tender.id === tenderId) {
                     const newVehicle: Vehicle = {
                         ...vehicleData,
-                        id: `veh-${Date.now()}` // simple unique ID
+                        id: `veh-${Date.now()}`
                     };
                     const updatedVehicles = [...(tender.vehicles || []), newVehicle];
                     return { ...tender, vehicles: updatedVehicles };
@@ -279,7 +334,8 @@ const App: React.FC = () => {
                 return tender;
             })
         );
-    }, []);
+        showToast('Vehicle added successfully!', 'success');
+    }, [showToast]);
 
     const handleDeleteVehicle = useCallback((tenderId: string, vehicleId: string) => {
         setTenders(prevTenders =>
@@ -291,7 +347,8 @@ const App: React.FC = () => {
                 return tender;
             })
         );
-    }, []);
+        showToast('Vehicle removed successfully.', 'success');
+    }, [showToast]);
     
     const handleAddAttachment = useCallback((tenderId: string, attachmentData: Omit<Attachment, 'id'>) => {
         setTenders(prevTenders =>
@@ -299,7 +356,7 @@ const App: React.FC = () => {
                 if (tender.id === tenderId) {
                     const newAttachment: Attachment = {
                         ...attachmentData,
-                        id: `att-${Date.now()}` // simple unique ID
+                        id: `att-${Date.now()}`
                     };
                     const updatedAttachments = [...(tender.attachments || []), newAttachment];
                     return { ...tender, attachments: updatedAttachments };
@@ -307,7 +364,8 @@ const App: React.FC = () => {
                 return tender;
             })
         );
-    }, []);
+        showToast('Attachment added successfully!', 'success');
+    }, [showToast]);
 
     const handleDeleteAttachment = useCallback((tenderId: string, attachmentId: string) => {
         setTenders(prevTenders =>
@@ -319,7 +377,8 @@ const App: React.FC = () => {
                 return tender;
             })
         );
-    }, []);
+        showToast('Attachment removed successfully.', 'success');
+    }, [showToast]);
     
     const handleUpdateTenderRemarks = useCallback((tenderId: string, remarks: string) => {
         setTenders(prevTenders =>
@@ -327,7 +386,8 @@ const App: React.FC = () => {
                 tender.id === tenderId ? { ...tender, remarks } : tender
             )
         );
-    }, []);
+        showToast('Tender remarks updated.', 'success');
+    }, [showToast]);
 
     const handleAddEmployee = useCallback((employeeData: Omit<Employee, 'id' | 'avatar' | 'status'>) => {
         const newId = `emp-${Date.now()}`;
@@ -338,11 +398,13 @@ const App: React.FC = () => {
             status: EmployeeStatus.Active,
         };
         setEmployees(prev => [...prev, newEmployee]);
-    }, []);
+        showToast('Employee added successfully!', 'success');
+    }, [showToast]);
 
     const handleUpdateEmployee = useCallback((updatedEmployee: Employee) => {
         setEmployees(prev => prev.map(emp => emp.id === updatedEmployee.id ? updatedEmployee : emp));
-    }, []);
+        showToast('Employee details updated.', 'success');
+    }, [showToast]);
 
     const handleAddVehicleType = useCallback((name: string) => {
         const newVehicleType: VehicleTypeMaster = {
@@ -350,17 +412,20 @@ const App: React.FC = () => {
             name,
         };
         setVehicleTypes(prev => [...prev, newVehicleType]);
-    }, []);
+        showToast('Vehicle type added successfully!', 'success');
+    }, [showToast]);
 
     const handleUpdateVehicleType = useCallback((updatedVehicleType: VehicleTypeMaster) => {
         setVehicleTypes(prev => prev.map(vt => vt.id === updatedVehicleType.id ? updatedVehicleType : vt));
-    }, []);
+        showToast('Vehicle type updated successfully!', 'success');
+    }, [showToast]);
 
     const handleDeleteVehicleType = useCallback((vehicleTypeId: string) => {
         if (window.confirm("Are you sure you want to delete this vehicle type? This action cannot be undone.")) {
             setVehicleTypes(prev => prev.filter(vt => vt.id !== vehicleTypeId));
+            showToast('Vehicle type deleted.', 'success');
         }
-    }, []);
+    }, [showToast]);
 
 
     const handleAiAssignTask = useCallback(async (tenderId: string, taskId: string): Promise<{ employeeId: string; reason: string; } | null> => {
@@ -369,14 +434,20 @@ const App: React.FC = () => {
         const activeEmployees = employees.filter(e => e.status === EmployeeStatus.Active);
 
         if (task) {
-            const suggestion = await suggestAssignee(task, activeEmployees);
-            if (suggestion) {
+            try {
+                const suggestion = await suggestAssignee(task, activeEmployees);
                 handleAssignTask(tenderId, taskId, suggestion.employeeId);
+                const employeeName = employees.find(e => e.id === suggestion.employeeId)?.name || 'the selected employee';
+                showToast(`AI successfully assigned task to ${employeeName}.`, 'success');
                 return suggestion;
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : "An unknown AI error occurred.";
+                showToast(errorMessage, 'error');
+                return null;
             }
         }
         return null;
-    }, [tenders, employees, handleAssignTask]);
+    }, [tenders, employees, handleAssignTask, showToast]);
 
     const handleViewTender = useCallback((tenderId: string) => {
         const tenderExists = tenders.some(t => t.id === tenderId);
@@ -398,6 +469,7 @@ const App: React.FC = () => {
                                 onSelectTender={setSelectedTenderId}
                                 onAddTender={handleOpenAddTenderModal}
                                 onDeleteTender={handleDeleteTender}
+                                onDuplicateTender={handleDuplicateTender}
                             />
                         </aside>
                         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
@@ -406,6 +478,7 @@ const App: React.FC = () => {
                                     tender={selectedTender}
                                     employees={employees}
                                     vehicleTypes={vehicleTypes}
+                                    userRole={userRole}
                                     onAssignTask={handleAssignTask}
                                     onAiAssignTask={handleAiAssignTask}
                                     onUpdateTaskStatus={handleUpdateTaskStatus}
@@ -434,6 +507,7 @@ const App: React.FC = () => {
                             tenders={tenders} 
                             employees={employees}
                             onViewTender={handleViewTender}
+                            onUpdateTaskStatus={handleUpdateTaskStatus}
                         />
                     </div>
                 );
@@ -467,7 +541,7 @@ const App: React.FC = () => {
 
     return (
         <div className="flex flex-col h-screen font-sans">
-            <Header currentView={currentView} setCurrentView={setCurrentView} />
+            <Header currentView={currentView} setCurrentView={setCurrentView} userRole={userRole} setUserRole={setUserRole} />
             {renderView()}
             <TenderFormModal
                 isOpen={isTenderModalOpen}
@@ -476,6 +550,15 @@ const App: React.FC = () => {
                 tenderToEdit={editingTender}
             />
         </div>
+    );
+};
+
+
+const App: React.FC = () => {
+    return (
+        <ToastProvider>
+            <AppContent />
+        </ToastProvider>
     );
 };
 

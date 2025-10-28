@@ -24,6 +24,8 @@ export enum EmployeeStatus {
     Inactive = 'inactive',
 }
 
+export type UserRole = 'admin' | 'user';
+
 export interface Attachment {
     id: string;
     type: AttachmentType;
@@ -78,6 +80,7 @@ export interface Tender {
     vehicles?: Vehicle[];
     attachments?: Attachment[];
     remarks?: string;
+    completionDate?: Date;
 }
 
 export interface PerformanceStats {

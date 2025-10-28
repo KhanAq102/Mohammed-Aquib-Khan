@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Task, Employee, TaskStatus, EmployeeStatus } from '../types';
+import { Task, Employee, TaskStatus, EmployeeStatus, UserRole } from '../types';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { UserIcon } from './icons/UserIcon';
 import { CalendarIcon } from './icons/CalendarIcon';
@@ -13,14 +13,16 @@ interface TaskItemProps {
     tenderId: string;
     task: Task;
     employees: Employee[];
+    userRole: UserRole;
     onAssignTask: (tenderId: string, taskId: string, employeeId: string | undefined) => void;
     onAiAssignTask: (tenderId: string, taskId: string) => Promise<{ employeeId: string; reason: string; } | null>;
     onUpdateTaskStatus: (tenderId: string, taskId: string, status: TaskStatus) => void;
     onUpdateTaskDetails: (tenderId: string, taskId: string, taskData: Pick<Task, 'title' | 'description' | 'dueDate'>) => void;
     onDeleteTask: (tenderId: string, taskId: string) => void;
+    isTenderCompleted: boolean;
 }
 
-const TaskItem: React.FC<TaskItemProps> = ({ tenderId, task, employees, onAssignTask, onAiAssignTask, onUpdateTaskStatus, onUpdateTaskDetails, onDeleteTask }) => {
+const TaskItem: React.FC<TaskItemProps> = ({ tenderId, task, employees, userRole, onAssignTask, onAiAssignTask, onUpdateTaskStatus, onUpdateTaskDetails, onDeleteTask, isTenderCompleted }) => {
     const [isAiLoading, setIsAiLoading] = useState(false);
     const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -30,6 +32,8 @@ const TaskItem: React.FC<TaskItemProps> = ({ tenderId, task, employees, onAssign
         dueDate: task.dueDate.toISOString().split('T')[0], // Format for <input type="date">
     });
     const [showHistory, setShowHistory] = useState(false);
+    
+    const isReadOnly = isTenderCompleted && userRole !== 'admin';
 
     // Reset edit form if the underlying task changes (e.g., from an AI assignment)
     useEffect(() => {
@@ -61,9 +65,7 @@ const TaskItem: React.FC<TaskItemProps> = ({ tenderId, task, employees, onAssign
         setAiSuggestion(null);
         const suggestion = await onAiAssignTask(tenderId, task.id);
         if (suggestion) {
-            setAiSuggestion(`AI recommended ${employees.find(e => e.id === suggestion.employeeId)?.name}: "${suggestion.reason}"`);
-        } else {
-            setAiSuggestion("AI could not make a suggestion. Please assign manually.");
+            setAiSuggestion(`AI Reason: "${suggestion.reason}"`);
         }
         setIsAiLoading(false);
     };
@@ -138,7 +140,8 @@ const TaskItem: React.FC<TaskItemProps> = ({ tenderId, task, employees, onAssign
                      <select
                         value={task.status}
                         onChange={(e) => onUpdateTaskStatus(tenderId, task.id, e.target.value as TaskStatus)}
-                        className={`text-xs font-medium rounded-full border-0 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition ${statusPillClasses[task.status]}`}
+                        disabled={isReadOnly}
+                        className={`text-xs font-medium rounded-full border-0 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition ${statusPillClasses[task.status]} disabled:cursor-not-allowed disabled:opacity-70`}
                         aria-label={`Current status: ${task.status}. Change status.`}
                     >
                         <option value={TaskStatus.Todo}>To Do</option>
@@ -222,7 +225,9 @@ const TaskItem: React.FC<TaskItemProps> = ({ tenderId, task, employees, onAssign
                 <select
                     value={task.assignedTo || ''}
                     onChange={(e) => onAssignTask(tenderId, task.id, e.target.value || undefined)}
-                    className="h-[44px] bg-white border border-slate-300 rounded-lg text-sm px-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                    disabled={userRole !== 'admin'}
+                    className="h-[44px] bg-white border border-slate-300 rounded-lg text-sm px-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:cursor-not-allowed"
+                    title={userRole !== 'admin' ? "Only admins can assign tasks" : "Assign task to an employee"}
                 >
                     <option value="">Unassign</option>
                     {activeEmployees.map(emp => (
@@ -232,7 +237,8 @@ const TaskItem: React.FC<TaskItemProps> = ({ tenderId, task, employees, onAssign
                 
                  <button
                     onClick={() => setIsEditing(true)}
-                    className="h-[44px] w-[44px] flex items-center justify-center bg-white border border-slate-300 text-slate-500 rounded-lg hover:bg-slate-100 transition-colors shadow-sm"
+                    disabled={isReadOnly}
+                    className="h-[44px] w-[44px] flex items-center justify-center bg-white border border-slate-300 text-slate-500 rounded-lg hover:bg-slate-100 transition-colors shadow-sm disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                     title="Edit Task"
                 >
                     <PencilIcon className="h-5 w-5" />
@@ -240,7 +246,8 @@ const TaskItem: React.FC<TaskItemProps> = ({ tenderId, task, employees, onAssign
 
                 <button
                     onClick={handleDeleteClick}
-                    className="h-[44px] w-[44px] flex items-center justify-center bg-white border border-slate-300 text-red-500 rounded-lg hover:bg-red-50 transition-colors shadow-sm"
+                    disabled={isReadOnly}
+                    className="h-[44px] w-[44px] flex items-center justify-center bg-white border border-slate-300 text-red-500 rounded-lg hover:bg-red-50 transition-colors shadow-sm disabled:bg-slate-100 disabled:text-red-300 disabled:cursor-not-allowed"
                     title="Delete Task"
                 >
                     <TrashIcon className="h-5 w-5" />
@@ -248,9 +255,9 @@ const TaskItem: React.FC<TaskItemProps> = ({ tenderId, task, employees, onAssign
 
                 <button
                     onClick={handleAiClick}
-                    disabled={isAiLoading}
+                    disabled={isAiLoading || userRole !== 'admin'}
                     className="h-[44px] w-[44px] flex items-center justify-center bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-indigo-300 transition-all duration-200 shadow-sm"
-                    title="Suggest Assignee with AI"
+                    title={userRole !== 'admin' ? "Only admins can use AI assignment" : "Suggest Assignee with AI"}
                 >
                     {isAiLoading ? (
                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>

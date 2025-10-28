@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { Task, Employee } from '../types';
 
@@ -14,7 +13,7 @@ const ai = new GoogleGenAI({ apiKey: API_KEY });
 export const suggestAssignee = async (
     task: Task,
     employees: Employee[]
-): Promise<{ employeeId: string; reason: string } | null> => {
+): Promise<{ employeeId: string; reason: string }> => {
     try {
         const employeeList = employees
             .map(e => `- ID: ${e.id}, Name: ${e.name}, Job Title: ${e.jobTitle}`)
@@ -58,16 +57,18 @@ export const suggestAssignee = async (
         const jsonStr = response.text.trim();
         const result = JSON.parse(jsonStr);
         
-        // Validate that the returned employeeId is valid
         if (employees.some(e => e.id === result.employeeId)) {
             return result;
         } else {
             console.error("Gemini suggested an invalid employee ID:", result.employeeId);
-            return null;
+            throw new Error("AI returned an invalid employee suggestion. Please try again or assign manually.");
         }
 
     } catch (error) {
         console.error("Error calling Gemini API:", error);
-        return null;
+        if (error instanceof Error && error.message.includes('invalid employee')) {
+            throw error;
+        }
+        throw new Error("Failed to get AI suggestion. Please check your connection or API key and try again.");
     }
 };

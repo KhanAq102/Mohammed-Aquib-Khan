@@ -43,8 +43,7 @@ const KanbanCard: React.FC<KanbanCardProps> = ({ task, employee, onDragStart, is
 interface KanbanBoardProps {
     tasks: Task[];
     employees: Employee[];
-    tenderId: string;
-    onUpdateTaskStatus: (tenderId: string, taskId: string, newStatus: TaskStatus) => void;
+    onUpdateTaskStatus: (taskId: string, newStatus: TaskStatus) => void;
 }
 
 const KANBAN_COLUMNS: { id: TaskStatus; title: string }[] = [
@@ -53,7 +52,7 @@ const KANBAN_COLUMNS: { id: TaskStatus; title: string }[] = [
     { id: TaskStatus.Done, title: 'Done' },
 ];
 
-const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, employees, tenderId, onUpdateTaskStatus }) => {
+const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, employees, onUpdateTaskStatus }) => {
 
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>, taskId: string) => {
         e.dataTransfer.setData('taskId', taskId);
@@ -74,7 +73,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, employees, tenderId, o
         }
 
         if (taskId) {
-            onUpdateTaskStatus(tenderId, taskId, newStatus);
+            onUpdateTaskStatus(taskId, newStatus);
         }
     };
 
